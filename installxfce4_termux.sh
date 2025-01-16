@@ -4,7 +4,7 @@
 
 pkg update -y &&
 pkg upgrade -y &&
-pkg install -y &&
+pkg install -y 
 x11-repo 
 termux-x11-nightly
 tur-repo
@@ -29,6 +29,7 @@ chromium
 flameshot
 fluent-gtk-theme
 fluent-icon-theme
+&&
 
 # get start desktop file
 
@@ -37,7 +38,7 @@ wget https://raw.githubusercontent.com/LinuxDroidMaster/Termux-Desktops/main/scr
 
 # change permissions for start desktop file
 
-chmod -x startxfce4_termux.sh
+chmod +x startxfce4_termux.sh
 
 # get shutdown desktop file
 
