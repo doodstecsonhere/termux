@@ -4,31 +4,7 @@
 
 pkg update -y &&
 pkg upgrade -y &&
-pkg install 
-x11-repo 
-termux-x11-nightly
-tur-repo
-pulseaudio
-wget
-git
-xfce4
-xfce4-appfinder
-xfce4-clipman-plugin
-xfce4-datetime-plugin
-xfce4-notifyd
-xfce4-panel
-xfce4-places-plugin
-xfce4-pulseaudio-plugin
-xfce4-session
-xfce4-settings
-xfce4-taskmanager
-xfce4-terminal
-xfce4-whiskermenu-plugin
-firefox
-chromium
-flameshot
-fluent-gtk-theme
-fluent-icon-theme -y &&
+pkg install -y x11-repo termux-x11-nightly tur-repo pulseaudio wget git xfce4 xfce4-appfinder xfce4-clipman-plugin xfce4-datetime-plugin xfce4-notifyd xfce4-panel xfce4-places-plugin xfce4-pulseaudio-plugin xfce4-session xfce4-settings xfce4-taskmanager xfce4-terminal xfce4-whiskermenu-plugin firefox chromium flameshot fluent-gtk-theme fluent-icon-theme &&
 
 # get start desktop file
 
