@@ -4,7 +4,7 @@
 
 pkg update -y &&
 pkg upgrade -y &&
-pkg install -y 
+pkg install 
 x11-repo 
 termux-x11-nightly
 tur-repo
@@ -28,8 +28,7 @@ firefox
 chromium
 flameshot
 fluent-gtk-theme
-fluent-icon-theme
-&&
+fluent-icon-theme -y &&
 
 # get start desktop file
 
