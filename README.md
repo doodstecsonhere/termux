@@ -4,4 +4,4 @@ wget https://github.com/doodstecsonhere/termux/blob/a1bffd1354e65eb97e372196855d
 
 chmod -x installxfce4_termux.sh
 
-./installxfc4_termux.sh
+./installxfce4_termux.sh
