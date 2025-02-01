@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # termux
 
 # adapted from https://github.com/LinuxDroidMaster/Termux-Desktops
