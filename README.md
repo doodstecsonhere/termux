@@ -1,8 +1,8 @@
 For the stable version, just copy and past the below code in Termux:
 
-{
+'''bash
 pkg install wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux.sh | sh
-}
+'''
 
 For the beta version, read further:
 
