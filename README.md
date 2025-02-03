@@ -1,13 +1,13 @@
 For the stable version, just copy and paste the below code in Termux:
 
 ```bash
-pkg install git wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux.sh | sh
+pkg install wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux.sh | sh
 ```
 
 For the beta version, use:
 
 ```bash
-pkg install wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux_beta.sh | bash
+pkg install git wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux_beta.sh | bash
 ```
 
 # Termux Dotfiles Setup Script
