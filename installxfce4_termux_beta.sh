@@ -12,7 +12,7 @@ readonly LOG_FILE="$TEMP_DIR/install_log.txt"
 readonly SCRIPT_VERSION="1.1.0"
 
 # Arrays of configuration
-readonly CONFIG_DIRS_TO_SYNC=(
+CONFIG_DIRS_TO_SYNC=(
     ".bashrc"
     ".zshrc"
     ".profile"
@@ -38,7 +38,7 @@ readonly CONFIG_DIRS_TO_SYNC=(
     ".ssh"
 )
 
-readonly PACKAGES_REQUIRED=(
+PACKAGES_REQUIRED=(
     "x11-repo"
     "tur-repo"
     "termux-x11-nightly"
@@ -56,18 +56,16 @@ readonly PACKAGES_REQUIRED=(
     "chromium"
     "fluent-gtk-theme"
     "fluent-icon-theme"
-    # Added new useful packages
     "htop"
     "neofetch"
     "nano"
     "vim"
     "tmux"
     "zsh"
-    "oh-my-zsh"
     "powerline-fonts"
 )
 
-readonly RSYNC_EXCLUDE_PATTERNS=(
+RSYNC_EXCLUDE_PATTERNS=(
     "*/cache*"
     "*/Cache*"
     "*.cache"
@@ -83,7 +81,6 @@ readonly RSYNC_EXCLUDE_PATTERNS=(
     ".DS_Store"
     ".localized"
     ".Trash*"
-    # Added new excludes
     "*.swp"
     "*.swo"
     "node_modules"
@@ -126,7 +123,7 @@ log() {
 
 error() {
     log "${RED}ERROR: $1${NC}" >&2
-    return 1
+    exit 1
 }
 
 warning() {
@@ -147,21 +144,18 @@ check_requirements() {
     # Check if running in Termux
     if [ ! -d "/data/data/com.termux" ]; then
         error "This script must be run in Termux"
-        exit 1
-    }
+    fi
 
     # Check available storage
     local available_space=$(df -P /data | awk 'NR==2 {print $4}')
     if [ "$available_space" -lt 1000000 ]; then # 1GB minimum
         error "Insufficient storage space. At least 1GB required"
-        exit 1
-    }
+    fi
 
     # Check internet connectivity
     if ! ping -c 1 github.com >/dev/null 2>&1; then
         error "No internet connection detected"
-        exit 1
-    }
+    fi
 }
 
 verify_github_credentials() {
@@ -171,14 +165,12 @@ verify_github_credentials() {
     # Validate email format
     if ! echo "$email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
         error "Invalid email format"
-        return 1
-    }
+    fi
 
     # Validate GitHub username format
     if ! echo "$username" | grep -qE '^[a-zA-Z0-9][-a-zA-Z0-9]*$'; then
         error "Invalid GitHub username format"
-        return 1
-    }
+    fi
 }
 
 sync_configs() {
@@ -195,7 +187,6 @@ sync_configs() {
             log "Syncing directory: $source to $dest"
             rsync -av --delete "${exclude_opts[@]}" "$source/" "$dest/" || {
                 error "Failed to sync $source to $dest"
-                return 1
             }
         else
             warning "Directory '$source' is empty. Skipping sync."
@@ -204,7 +195,6 @@ sync_configs() {
         log "Syncing file: $source to $dest"
         rsync -av "$source" "$dest" || {
             error "Failed to sync $source to $dest"
-            return 1
         }
     else
         warning "Source path '$source' does not exist. Skipping sync."
@@ -224,11 +214,9 @@ install_packages() {
             if [ $i -lt $retries ]; then
                 warning "Failed to install '$package'. Attempt $i of $retries. Retrying in ${wait_time}s..."
                 sleep $wait_time
-                # Increase wait time for next attempt
                 wait_time=$((wait_time * 2))
             else
                 error "Failed to install '$package' after $retries attempts"
-                return 1
             fi
         fi
     done
@@ -240,7 +228,7 @@ setup_zsh() {
         sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 
         # Install powerlevel10k theme
-        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
 
         # Set ZSH as default shell
         chsh -s zsh
@@ -338,10 +326,7 @@ main() {
         echo -ne "Installing packages: [${current_package}/${total_packages}] ${package}...\r"
         
         if ! is_package_installed "$package"; then
-            if ! install_packages "$package"; then
-                error "Failed to install required packages"
-                exit 1
-            fi
+            install_packages "$package"
         fi
     done
     echo # New line after progress
