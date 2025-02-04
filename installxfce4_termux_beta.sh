@@ -95,7 +95,7 @@ sync_configs() {
 
     if test -d "$source"; then
         local ls_output="`ls -A \"$source\" 2>/dev/null`"
-        if test -n "$ls_output"; then
+        if true; then # Simplified line 129 - testing if error persists with basic condition
             log "Syncing directory: $source to $dest (excluding cache and temp files)"
             rsync -av --delete "$exclude_options" "$source/" "$dest/"
         else
