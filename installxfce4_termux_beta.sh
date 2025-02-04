@@ -91,19 +91,19 @@ is_package_installed() {
 sync_configs() {
     local source=$1
     local dest=$2
-    local exclude_options=""
+    local exclude_options=()
 
     # Build rsync exclude options from array
     for pattern in "${RSYNC_EXCLUDE_PATTERNS[@]}"; do
-        exclude_options+="--exclude '$pattern' "
+        exclude_options+=(--exclude "$pattern")
     done
 
     if [ -d "$source" ] && [ "$(ls -A "$source" 2>/dev/null)" ]; then
         log "Syncing directory: $source to $dest (excluding cache and temp files)"
-        rsync -av --delete $exclude_options "$source/" "$dest/"
+        rsync -av --delete "${exclude_options[@]}" "$source/" "$dest/"
     elif [ -f "$source" ]; then # Handle single files too
         log "Syncing file: $source to $dest"
-        rsync -av "$source" "$dest"
+        rsync -av "${exclude_options[@]}" "$source" "$dest"
     else
         log "Warning: Source path '$source' does not exist. Skipping sync."
     fi
