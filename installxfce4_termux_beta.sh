@@ -117,12 +117,14 @@ termux-setup-storage || { log "Failed to get storage permission"; exit 1; }
 log "Updating package lists..."
 pkg update -y && pkg upgrade -y
 
-log "Installing required packages..."
-# Install x11-repo and tur-repo first, then the rest
+log "Installing repository packages..."
 if ! is_package_installed "x11-repo"; then pkg install -y x11-repo || exit 1; fi
 if ! is_package_installed "tur-repo"; then pkg install -y tur-repo || exit 1; fi
 
-# Install remaining packages, checking if already installed before attempting to install
+log "Updating package lists again after adding repositories..."
+pkg update -y
+
+log "Installing remaining required packages..."
 for package in "${PACKAGES_REQUIRED[@]}"; do
     if ! is_package_installed "$package"; then
         log "Installing package: $package"
@@ -205,7 +207,7 @@ if [ ! -d "$DOTFILES_DIR" ]; then
     git branch -M main
     git push -u origin main || log "Warning: Initial push of dotfiles failed. Check network and GitHub credentials. Will try again later."
 elif [ ! -d "$DOTFILES_DIR/.git" ]; then
-    log "Warning: Dotfiles directory '$DOTFILES_DIR' exists but is not a Git repository. Skipping Git initialization. If you intended to use this directory as your dotfiles repository, please ensure it's initialized as a Git repository (e.g., by running 'git init' inside it) and then re-run this script."
+    log "Warning: Dotfiles directory '$DOTFILES_DIR' exists but is not a Git repository. Skipping Git initialization. If you intended to use this directory as your dotfiles repository, please ensure it is properly set up."
 else
     log "Dotfiles repository already exists in '$DOTFILES_DIR'. Updating from remote..."
     cd "$DOTFILES_DIR"
@@ -215,7 +217,7 @@ fi
 # --- Create Local Config Directories ---
 log "Creating local configuration directories if they don't exist..."
 for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
-    if [[ "$config_dir_base" == */* || "$config_dir_base" == .*/* || "$config_dir_base" == ".config" || "$config_dir_base" == ".mozilla" || "$config_dir_base" == ".themes" || "$config_dir_base" == ".icons" || "$config_dir_base" == ".fonts" || "$config_dir_base" == ".local/share/fonts" ]]; then
+    if [[ "$config_dir_base" == */* || "$config_dir_base" == .*/* || "$config_dir_base" == ".config" || "$config_dir_base" == ".mozilla" || "$config_dir_base" == ".themes" || "$config_dir_base" == ".icons" || "$config_dir_base" == ".local/share/fonts" ]]; then
         mkdir -p ~/"$config_dir_base"
     fi
 done
@@ -225,14 +227,13 @@ mkdir -p ~/.mozilla/firefox
 mkdir -p ~/.config/chromium
 mkdir -p ~/.themes
 mkdir -p ~/.icons
-mkdir -p ~/.local/share/fonts"
-
+mkdir -p ~/.local/share/fonts
 
 # --- Initial Config Backup (Before Sync) ---
 log "Backing up existing configurations to dotfiles repository (before initial sync)..."
 for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
-    local source_config_path=~/"$config_dir_base" # Now handles files or directories
-    local backup_config_path="$BACKUP_DIR/$config_dir_base"
+    source_config_path=~/"$config_dir_base" # Now handles files or directories
+    backup_config_path="$BACKUP_DIR/$config_dir_base"
 
     if [ -d "$source_config_path" ] || [ -f "$source_config_path" ]; then # Check if it exists (file or dir)
         log "Backing up: $source_config_path to $backup_config_path"
@@ -242,13 +243,12 @@ for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
     fi
 done
 
-
 # --- Initial Config Sync from Backup (if available) ---
 if [ "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]; then # Check if BACKUP_DIR is non-empty - any backup exists
     log "Syncing configurations from dotfiles backup..."
     for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
-        local backup_config_path="$BACKUP_DIR/$config_dir_base"
-        local dest_config_path=~/"$config_dir_base"
+        backup_config_path="$BACKUP_DIR/$config_dir_base"
+        dest_config_path=~/"$config_dir_base"
 
         sync_configs "$backup_config_path" "$dest_config_path" # Use sync_configs to handle exclusions
     done
@@ -267,8 +267,8 @@ sync_configs_and_backup() {
         log "Auto-syncing and backing up configurations to dotfiles (excluding cache and temp files)..."
         cd ~/dotfiles
         for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
-            local source_config_path=~/"$config_dir_base"
-            local backup_config_path="./$BACKUP_DIR_NAME/$config_dir_base"
+            source_config_path=~/"$config_dir_base"
+            backup_config_path="./$BACKUP_DIR_NAME/$config_dir_base"
 
             if [ -d "$source_config_path" ] || [ -f "$source_config_path" ]; then
                 sync_configs "$source_config_path" "$backup_config_path" # Use sync_configs to handle exclusions
@@ -303,7 +303,6 @@ if ! [ -f ~/Desktop/Shutdown.desktop ]; then
 else
     log "Shutdown.desktop already exists in ~/Desktop. Skipping download."
 fi
-
 
 # --- Setup Complete ---
 log "Setup complete! Starting XFCE..."
