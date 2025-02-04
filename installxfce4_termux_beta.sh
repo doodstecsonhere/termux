@@ -238,63 +238,13 @@ mkdir -p ~/.local/share/fonts
 log "Backing up existing configurations to dotfiles repository (before initial sync)..."
 for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
     local source_config_path=~/"$config_dir_base"
-    local backup_config_path="$BACKUP_DIR/$config_dir_base"
-
-    if test -d "$source_config_path"; then
-        log "Backing up: $source_config_path to $backup_config_path"
-        sync_configs "$source_config_path" "$backup_config_path"
-    elif test -f "$source_config_path"; then
-        log "Backing up: $source_config_path to $backup_config_path"
-        sync_configs "$source_config_path" "$backup_config_path"
-    else
-        log "No existing configuration found at '$source_config_path'. Skipping backup for $config_dir_base."
-    fi
-done
-
-# --- Initial Config Sync from Backup (if available) ---
-if [ -n "`ls -A \"$BACKUP_DIR\" 2>/dev/null`" ]; then
-    log "Syncing configurations from dotfiles backup..."
-    for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
-        local backup_config_path="$BACKUP_DIR/$config_dir_base"
-        local dest_config_path=~/"$config_dir_base"
-        sync_configs "$backup_config_path" "$dest_config_path"
+config_path"
     done
 else
     log "No existing configurations found in dotfiles backup. Skipping initial sync from backup."
 fi
 
-# --- Set up Auto Config Sync and Backup on Exit ---
-if ! grep -q "sync_configs_and_backup" ~/.bashrc; then
-    log "Adding auto config sync and backup function to ~/.bashrc..."
-    cat << "EOF" >> ~/.bashrc
-
-sync_configs_and_backup() {
-    if [ -d ~/dotfiles ]; then
-        log "Auto-syncing and backing up configurations to dotfiles (excluding cache and temp files)..."
-        cd ~/dotfiles
-        for config_dir_base in "\${CONFIG_DIRS_TO_SYNC[@]}"; do # Escape $ for array in heredoc
-            local source_config_path=~/"\$config_dir_base" # Escape $ for variable in heredoc
-            local backup_config_path="./\$BACKUP_DIR_NAME/\$config_dir_base" # Escape $ for variables in heredoc
-            if test -d "\$source_config_path" || test -f "\$source_config_path"; then # Escape $ for variables in heredoc, use test command
-                sync_configs "\$source_config_path" "\$backup_config_path" # Escape $ for variables in heredoc
-            fi
-        done
-        git add .
-        git commit -m "Auto-backup: \$(date +'%Y-%m-%d %H:%M:%S')" || true # Escape $ for command substitution in heredoc
-        git push origin main || log "Warning (Auto-sync): Push failed. Will try again later."
-    fi
-}
-trap sync_configs_and_backup EXIT
-EOF
-else
-    log "Auto config sync and backup already configured in ~/.bashrc. Skipping."
-fi
-
-# --- XFCE Desktop Files Setup ---
-log "Setting up XFCE desktop files..."
-cd ~
-if ! [ -f startxfce4_termux.sh ]; then
-    wget https://raw.githubusercontent.com/LinuxDroidMaster/Termux-Desktops/main/scripts/termux_native/startxfce4_termux.sh
+ster/Termux-Desktops/main/scripts/termux_native/startxfce4_termux.sh
     chmod +x startxfce4_termux.sh
     log "Downloaded and set execute permissions for startxfce4_termux.sh"
 else
