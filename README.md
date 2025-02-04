@@ -7,7 +7,7 @@ pkg install wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonher
 For the beta version, use:
 
 ```bash
-pkg install wget git x11-repo tur-repo  -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux_beta.sh | bash
+pkg install wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux_beta.sh | bash
 ```
 
 # Termux Dotfiles Setup Script
