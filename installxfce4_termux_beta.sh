@@ -93,9 +93,14 @@ sync_configs() {
         exclude_options+="--exclude '$pattern' "
     done
 
-    if [ -d "$source" ] && [ -n "`ls -A \"$source\" 2>/dev/null`" ]; then # Use -n to check for non-empty output - using backticks and escaped quotes
-        log "Syncing directory: $source to $dest (excluding cache and temp files)"
-        rsync -av --delete "$exclude_options" "$source/" "$dest/"
+    if [ -d "$source" ]; then
+        local ls_output="`ls -A \"$source\" 2>/dev/null`"
+        if [ -n "$ls_output" ]; then
+            log "Syncing directory: $source to $dest (excluding cache and temp files)"
+            rsync -av --delete "$exclude_options" "$source/" "$dest/"
+        else
+            log "Directory '$source' is empty. Skipping sync."
+        fi
     elif [ -f "$source" ]; then
         log "Syncing file: $source to $dest"
         rsync -av "$source" "$dest"
@@ -244,7 +249,7 @@ for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
 done
 
 # --- Initial Config Sync from Backup (if available) ---
-if [ -n "`ls -A \"$BACKUP_DIR\" 2>/dev/null`" ]; then # Use -n to check for non-empty output - using backticks and escaped quotes
+if [ -n "`ls -A \"$BACKUP_DIR\" 2>/dev/null`" ]; then # Use -n to check for non-empty output
     log "Syncing configurations from dotfiles backup..."
     for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
         local backup_config_path="$BACKUP_DIR/$config_dir_base"
