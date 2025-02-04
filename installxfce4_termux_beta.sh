@@ -93,15 +93,15 @@ sync_configs() {
         exclude_options+="--exclude '$pattern' "
     done
 
-    if [ -d "$source" ]; then
+    if test -d "$source"; then
         local ls_output="`ls -A \"$source\" 2>/dev/null`"
-        if [ -n "$ls_output" ]; then
+        if test -n "$ls_output"; then
             log "Syncing directory: $source to $dest (excluding cache and temp files)"
             rsync -av --delete "$exclude_options" "$source/" "$dest/"
         else
             log "Directory '$source' is empty. Skipping sync."
         fi
-    elif [ -f "$source" ]; then
+    elif test -f "$source"; then
         log "Syncing file: $source to $dest"
         rsync -av "$source" "$dest"
     else
@@ -240,7 +240,10 @@ for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
     local source_config_path=~/"$config_dir_base"
     local backup_config_path="$BACKUP_DIR/$config_dir_base"
 
-    if [ -d "$source_config_path" ] || [ -f "$source_config_path" ]; then
+    if test -d "$source_config_path"; then
+        log "Backing up: $source_config_path to $backup_config_path"
+        sync_configs "$source_config_path" "$backup_config_path"
+    elif test -f "$source_config_path"; then
         log "Backing up: $source_config_path to $backup_config_path"
         sync_configs "$source_config_path" "$backup_config_path"
     else
@@ -249,7 +252,7 @@ for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
 done
 
 # --- Initial Config Sync from Backup (if available) ---
-if [ -n "`ls -A \"$BACKUP_DIR\" 2>/dev/null`" ]; then # Use -n to check for non-empty output
+if [ -n "`ls -A \"$BACKUP_DIR\" 2>/dev/null`" ]; then
     log "Syncing configurations from dotfiles backup..."
     for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
         local backup_config_path="$BACKUP_DIR/$config_dir_base"
@@ -272,7 +275,7 @@ sync_configs_and_backup() {
         for config_dir_base in "\${CONFIG_DIRS_TO_SYNC[@]}"; do # Escape $ for array in heredoc
             local source_config_path=~/"\$config_dir_base" # Escape $ for variable in heredoc
             local backup_config_path="./\$BACKUP_DIR_NAME/\$config_dir_base" # Escape $ for variables in heredoc
-            if [ -d "\$source_config_path" ] || [ -f "\$source_config_path" ]; then # Escape $ for variables in heredoc
+            if test -d "\$source_config_path" || test -f "\$source_config_path"; then # Escape $ for variables in heredoc, use test command
                 sync_configs "\$source_config_path" "\$backup_config_path" # Escape $ for variables in heredoc
             fi
         done
