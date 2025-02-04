@@ -1,17 +1,11 @@
 #!/bin/bash
 
-# Strict mode
-set -euo pipefail
-IFS=$'\n\t'
+# Exit on error
+set -e
 
 # --- Configuration Variables ---
-readonly DOTFILES_REPO_DEFAULT="termux-dotfiles"
-readonly BACKUP_DIR_NAME="config_backup"
-readonly TEMP_DIR="/data/data/com.termux/files/usr/tmp/xfce4_install_$$"
-readonly LOG_FILE="$TEMP_DIR/install_log.txt"
-readonly SCRIPT_VERSION="1.1.0"
-
-# Arrays of configuration
+DOTFILES_REPO_DEFAULT="termux-dotfiles"
+BACKUP_DIR_NAME="config_backup"
 CONFIG_DIRS_TO_SYNC=(
     ".bashrc"
     ".zshrc"
@@ -37,7 +31,6 @@ CONFIG_DIRS_TO_SYNC=(
     ".gitconfig"
     ".ssh"
 )
-
 PACKAGES_REQUIRED=(
     "x11-repo"
     "tur-repo"
@@ -56,15 +49,7 @@ PACKAGES_REQUIRED=(
     "chromium"
     "fluent-gtk-theme"
     "fluent-icon-theme"
-    "htop"
-    "neofetch"
-    "nano"
-    "vim"
-    "tmux"
-    "zsh"
-    "powerline-fonts"
 )
-
 RSYNC_EXCLUDE_PATTERNS=(
     "*/cache*"
     "*/Cache*"
@@ -81,321 +66,257 @@ RSYNC_EXCLUDE_PATTERNS=(
     ".DS_Store"
     ".localized"
     ".Trash*"
-    "*.swp"
-    "*.swo"
-    "node_modules"
-    "__pycache__"
-    "*.pyc"
-    ".git"
-    ".svn"
-    ".idea"
-    ".vscode"
 )
 
-# --- Color definitions ---
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m' # No Color
+# --- User Prompts ---
+read -p "Enter your GitHub username: " GITHUB_USERNAME
+read -p "Enter your GitHub email: " GITHUB_EMAIL
+read -p "Enter your dotfiles repository name (default: $DOTFILES_REPO_DEFAULT): " DOTFILES_REPO_INPUT
+DOTFILES_REPO="${DOTFILES_REPO_INPUT:-$DOTFILES_REPO_DEFAULT}"
 
 # --- Functions ---
-setup_logging() {
-    mkdir -p "$TEMP_DIR"
-    exec 1> >(tee -a "$LOG_FILE")
-    exec 2> >(tee -a "$LOG_FILE" >&2)
-    chmod 600 "$LOG_FILE"
-}
-
-cleanup() {
-    local exit_code=$?
-    log "Cleaning up temporary files..."
-    rm -rf "$TEMP_DIR"
-    if [ $exit_code -ne 0 ]; then
-        log "Installation failed. Check the log file at $LOG_FILE for details."
-    fi
-}
-
 log() {
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo -e "${BLUE}[$timestamp]${NC} - $1"
-}
-
-error() {
-    log "${RED}ERROR: $1${NC}" >&2
-    exit 1
-}
-
-warning() {
-    log "${YELLOW}WARNING: $1${NC}" >&2
-}
-
-success() {
-    log "${GREEN}SUCCESS: $1${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
 is_package_installed() {
     pkg list-installed "$1" > /dev/null 2>&1
-}
-
-check_requirements() {
-    log "Checking system requirements..."
-    
-    # Check if running in Termux
-    if [ ! -d "/data/data/com.termux" ]; then
-        error "This script must be run in Termux"
-    fi
-
-    # Check available storage
-    local available_space=$(df -P /data | awk 'NR==2 {print $4}')
-    if [ "$available_space" -lt 1000000 ]; then # 1GB minimum
-        error "Insufficient storage space. At least 1GB required"
-    fi
-
-    # Check internet connectivity
-    if ! ping -c 1 github.com >/dev/null 2>&1; then
-        error "No internet connection detected"
-    fi
-}
-
-verify_github_credentials() {
-    local username="$1"
-    local email="$2"
-    
-    # Validate email format
-    if ! echo "$email" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-        error "Invalid email format"
-    fi
-
-    # Validate GitHub username format
-    if ! echo "$username" | grep -qE '^[a-zA-Z0-9][-a-zA-Z0-9]*$'; then
-        error "Invalid GitHub username format"
-    fi
+    return $?
 }
 
 sync_configs() {
     local source="$1"
     local dest="$2"
-    
-    local exclude_opts=()
+    local exclude_options=""
+
     for pattern in "${RSYNC_EXCLUDE_PATTERNS[@]}"; do
-        exclude_opts+=(--exclude "$pattern")
+        exclude_options+="--exclude '$pattern' "
     done
 
-    if [ -d "$source" ]; then
-        if [ -n "$(ls -A "$source" 2>/dev/null)" ]; then
-            log "Syncing directory: $source to $dest"
-            rsync -av --delete "${exclude_opts[@]}" "$source/" "$dest/" || {
-                error "Failed to sync $source to $dest"
-            }
+    if test -d "$source"; then
+        local ls_output="`ls -A \"$source\" 2>/dev/null`"
+        if test -n "$ls_output"; then
+            log "Syncing directory: $source to $dest (excluding cache and temp files)"
+            rsync -av --delete "$exclude_options" "$source/" "$dest/"
         else
-            warning "Directory '$source' is empty. Skipping sync."
+            log "Directory '$source' is empty. Skipping sync."
         fi
-    elif [ -f "$source" ]; then
+    elif test -f "$source"; then
         log "Syncing file: $source to $dest"
-        rsync -av "$source" "$dest" || {
-            error "Failed to sync $source to $dest"
-        }
+        rsync -av "$source" "$dest"
     else
-        warning "Source path '$source' does not exist. Skipping sync."
+        log "Warning: Source path '$source' does not exist. Skipping sync."
     fi
 }
 
-install_packages() {
-    local package="$1"
-    local retries=3
-    local wait_time=5
+# --- Termux Setup ---
+log "Requesting Termux storage permission..."
+termux-setup-storage || { log "Failed to get storage permission"; exit 1; }
 
-    for ((i=1; i<=retries; i++)); do
-        if pkg install -y "$package" 2>/dev/null; then
-            success "Package '$package' installed successfully"
-            return 0
-        else
-            if [ $i -lt $retries ]; then
-                warning "Failed to install '$package'. Attempt $i of $retries. Retrying in ${wait_time}s..."
-                sleep $wait_time
-                wait_time=$((wait_time * 2))
-            else
-                error "Failed to install '$package' after $retries attempts"
-            fi
-        fi
-    done
-}
+# --- Package Installation ---
+log "Updating package lists..."
+pkg update -y && pkg upgrade -y
 
-setup_zsh() {
-    if [ ! -d "$HOME/.oh-my-zsh" ]; then
-        log "Setting up Oh My Zsh..."
-        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+log "Installing required repositories and packages..."
 
-        # Install powerlevel10k theme
-        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+if ! is_package_installed "x11-repo"; then
+    log "Installing package: x11-repo"
+    pkg install -y x11-repo || exit 1
+else
+    log "Package 'x11-repo' is already installed. Skipping."
+fi
 
-        # Set ZSH as default shell
-        chsh -s zsh
-    fi
-}
+if ! is_package_installed "tur-repo"; then
+    log "Installing package: tur-repo"
+    pkg install -y tur-repo || exit 1
+else
+    log "Package 'tur-repo' is already installed. Skipping."
+fi
 
-create_desktop_shortcuts() {
-    local desktop_dir="$HOME/Desktop"
-    mkdir -p "$desktop_dir"
-
-    # Create Terminal shortcut
-    cat > "$desktop_dir/Terminal.desktop" << EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Terminal
-Comment=Start Terminal
-Exec=xfce4-terminal
-Icon=utilities-terminal
-Terminal=false
-Categories=System;TerminalEmulator;
-EOF
-
-    # Create File Manager shortcut
-    cat > "$desktop_dir/FileManager.desktop" << EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=File Manager
-Comment=Browse Files
-Exec=thunar
-Icon=system-file-manager
-Terminal=false
-Categories=System;FileTools;FileManager;
-EOF
-
-    chmod +x "$desktop_dir"/*.desktop
-}
-
-setup_git_config() {
-    local username="$1"
-    local email="$2"
-
-    log "Configuring Git..."
-    git config --global user.name "$username"
-    git config --global user.email "$email"
-    git config --global init.defaultBranch main
-    git config --global core.editor nano
-    git config --global pull.rebase false
-    git config --global color.ui auto
-}
-
-# --- Main Script ---
-main() {
-    trap cleanup EXIT
-    setup_logging
-
-    # Show welcome banner
-    echo -e "${GREEN}"
-    echo "╔════════════════════════════════════════════╗"
-    echo "║     XFCE4 Termux Installation Script       ║"
-    echo "║              Version $SCRIPT_VERSION                ║"
-    echo "╚════════════════════════════════════════════╝"
-    echo -e "${NC}"
-
-    # Check requirements
-    check_requirements
-
-    # Get user input with validation
-    while true; do
-        read -p "Enter your GitHub username: " GITHUB_USERNAME
-        read -p "Enter your GitHub email: " GITHUB_EMAIL
-        if verify_github_credentials "$GITHUB_USERNAME" "$GITHUB_EMAIL"; then
-            break
-        fi
-    done
-
-    read -p "Enter your dotfiles repository name (default: $DOTFILES_REPO_DEFAULT): " DOTFILES_REPO_INPUT
-    DOTFILES_REPO="${DOTFILES_REPO_INPUT:-$DOTFILES_REPO_DEFAULT}"
-
-    # Request storage permission
-    log "Requesting Termux storage permission..."
-    termux-setup-storage || error "Failed to get storage permission"
-
-    # Update package lists with progress
-    log "Updating package lists..."
-    pkg update -y && pkg upgrade -y
-
-    # Install packages with progress bar
-    local total_packages=${#PACKAGES_REQUIRED[@]}
-    local current_package=0
-
-    for package in "${PACKAGES_REQUIRED[@]}"; do
-        ((current_package++))
-        echo -ne "Installing packages: [${current_package}/${total_packages}] ${package}...\r"
-        
+for package in "${PACKAGES_REQUIRED[@]}"; do
+    if [[ "$package" != "x11-repo" && "$package" != "tur-repo" ]]; then
         if ! is_package_installed "$package"; then
-            install_packages "$package"
+            log "Installing package: $package"
+            pkg install -y "$package" || exit 1
+        else
+            log "Package '$package' is already installed. Skipping."
         fi
+    fi
+done
+
+# --- Git Configuration ---
+log "Setting up Git global configuration..."
+git config --global user.name "$GITHUB_USERNAME"
+git config --global user.email "$GITHUB_EMAIL"
+
+# --- SSH Key Setup ---
+if [ ! -f ~/.ssh/id_rsa ]; then
+    log "No SSH key found. Generating a new one..."
+    ssh-keygen -t rsa -b 4096 -C "$GITHUB_EMAIL" -f ~/.ssh/id_rsa -N ""
+
+    log "SSH key generated. Here is your public key:"
+    cat ~/.ssh/id_rsa.pub
+    echo
+    log "Please add the above key to your GitHub account at https://github.com/settings/keys"
+
+    if command -v termux-open &> /dev/null; then
+        termux-open "https://github.com/settings/keys"
+    elif command -v xdg-open &> /dev/null; then
+        xdg-open "https://github.com/settings/keys"
+    else
+        log "Visit https://github.com/settings/keys in your browser to add the key."
+    fi
+
+    read -n 1 -s -r -p "Press Enter to continue after copying the SSH key..."
+    echo ""
+
+    while true; do
+        read -p "Have you added the SSH key to your GitHub account? (y/n): " response
+        case "$response" in
+            [Yy]* ) break;;
+            [Nn]* ) log "Please add the key and then enter 'y'."; sleep 2;;
+            * ) log "Please answer yes (y) or no (n).";;
+        esac
     done
-    echo # New line after progress
+fi
 
-    # Set up Git and SSH
-    setup_git_config "$GITHUB_USERNAME" "$GITHUB_EMAIL"
+# Start SSH agent and add the key
+log "Starting SSH agent and adding SSH key..."
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_rsa
 
-    # Set up SSH key if needed
-    if [ ! -f ~/.ssh/id_rsa ]; then
-        log "Generating SSH key..."
-        ssh-keygen -t ed25519 -C "$GITHUB_EMAIL" -f ~/.ssh/id_rsa -N ""
-        
-        log "Here is your public SSH key:"
-        cat ~/.ssh/id_rsa.pub
-        
-        if command -v termux-open &>/dev/null; then
-            termux-open "https://github.com/settings/keys"
-        fi
-    fi
+# Verify SSH connection to GitHub
+log "Testing GitHub SSH access..."
+if ! ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+    log "Error: SSH authentication failed. Ensure your key is added to GitHub and SSH agent is running."
+    exit 1
+fi
 
-    # Set up dotfiles repository
-    DOTFILES_DIR=~/"$DOTFILES_REPO"
-    BACKUP_DIR="$DOTFILES_DIR/$BACKUP_DIR_NAME"
+# --- Dotfiles Repository Setup ---
+DOTFILES_DIR=~/"$DOTFILES_REPO"
+BACKUP_DIR="$DOTFILES_DIR/$BACKUP_DIR_NAME"
 
-    if [ ! -d "$DOTFILES_DIR" ]; then
-        log "Creating new dotfiles repository..."
-        mkdir -p "$DOTFILES_DIR"
-        cd "$DOTFILES_DIR"
-        git init
-        git remote add origin "git@github.com:$GITHUB_USERNAME/$DOTFILES_REPO.git"
-        
-        # Create initial structure
-        mkdir -p "$BACKUP_DIR"
-        echo "# Termux Dotfiles" > README.md
-        echo "Created on $(date)" >> README.md
-        git add .
-        git commit -m "Initial dotfiles setup"
-        git branch -M main
-        git push -u origin main || warning "Initial push failed. Will retry later."
-    fi
-
-    # Sync configurations
-    log "Syncing configurations..."
+if [ ! -d "$DOTFILES_DIR" ]; then
+    log "Creating new dotfiles repository in '$DOTFILES_DIR'..."
+    mkdir -p "$DOTFILES_DIR"
+    cd "$DOTFILES_DIR"
+    git init
+    git remote add origin "git@github.com:$GITHUB_USERNAME/$DOTFILES_REPO.git"
+    mkdir -p "$BACKUP_DIR"
     for config_dir in "${CONFIG_DIRS_TO_SYNC[@]}"; do
-        sync_configs ~/"$config_dir" "$BACKUP_DIR/$config_dir"
+        mkdir -p "$BACKUP_DIR/$config_dir"
     done
+    echo "# Termux Dotfiles" > README.md
+    echo "Created on $(date)" >> README.md
+    git add .
+    git commit -m "Initial dotfiles setup"
+    git branch -M main
+    git push -u origin main || log "Warning: Initial push of dotfiles failed. Check network and GitHub credentials. Will try again later."
+elif [ ! -d "$DOTFILES_DIR/.git" ]; then
+    log "Warning: Dotfiles directory '$DOTFILES_DIR' exists but is not a Git repository. Skipping Git initialization. If you intended to use this directory as your dotfiles repository, please ensure it's initialized as a Git repository (e.g., by running 'git init' inside it) and then re-run this script."
+else
+    log "Dotfiles repository already exists in '$DOTFILES_DIR'. Updating from remote..."
+    cd "$DOTFILES_DIR"
+    git pull origin main || log "Warning: Pulling latest dotfiles failed. Check network and GitHub credentials."
+fi
 
-    # Set up ZSH
-    setup_zsh
+# --- Create Local Config Directories ---
+log "Creating local configuration directories if they don't exist..."
+for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
+    if [[ "$config_dir_base" == */* || "$config_dir_base" == .*/* || "$config_dir_base" == ".config" || "$config_dir_base" == ".mozilla" || "$config_dir_base" == ".themes" || "$config_dir_base" == ".icons" || "$config_dir_base" == ".fonts" || "$config_dir_base" == ".local/share/fonts" ]]; then
+        mkdir -p ~/"$config_dir_base"
+    fi
+done
+mkdir -p ~/.config/xfce4
+mkdir -p ~/.mozilla/firefox
+mkdir -p ~/.config/chromium
+mkdir -p ~/.themes
+mkdir -p ~/.icons
+mkdir -p ~/.local/share/fonts
 
-    # Create desktop shortcuts
-    create_desktop_shortcuts
+# --- Initial Config Backup (Before Sync) ---
+log "Backing up existing configurations to dotfiles repository (before initial sync)..."
+for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
+    local source_config_path=~/"$config_dir_base"
+    local backup_config_path="$BACKUP_DIR/$config_dir_base"
 
-    # Final setup
-    log "Setting up XFCE startup script..."
-    wget -q https://raw.githubusercontent.com/LinuxDroidMaster/Termux-Desktops/main/scripts/termux_native/startxfce4_termux.sh
-    chmod +x startxfce4_termux.sh
+    if test -d "$source_config_path"; then
+        log "Backing up: $source_config_path to $backup_config_path"
+        sync_configs "$source_config_path" "$backup_config_path"
+    elif test -f "$source_config_path"; then
+        log "Backing up: $source_config_path to $backup_config_path"
+        sync_configs "$source_config_path" "$backup_config_path"
+    else
+        log "No existing configuration found at '$source_config_path'. Skipping backup for $config_dir_base."
+    fi
+done
 
-    # Create successful installation marker
-    touch "$HOME/.xfce4_installed"
+# --- Initial Config Sync from Backup (if available) ---
+if [ -n "`ls -A \"$BACKUP_DIR\" 2>/dev/null`" ]; then
+    log "Syncing configurations from dotfiles backup..."
+    for config_dir_base in "${CONFIG_DIRS_TO_SYNC[@]}"; do
+        local backup_config_path="$BACKUP_DIR/$config_dir_base"
+        local dest_config_path=~/"$config_dir_base"
+        sync_configs "$backup_config_path" "$dest_config_path"
+    done
+else
+    log "No existing configurations found in dotfiles backup. Skipping initial sync from backup."
+fi
 
-    success "Installation completed successfully!"
-    echo
-    echo "To start XFCE4:"
-    echo "1. Run: ./startxfce4_termux.sh"
-    echo "2. If using Oh My Zsh, restart your terminal and run: p10k configure"
-    echo
-    echo "Installation log saved to: $LOG_FILE"
+# --- Set up Auto Config Sync and Backup on Exit ---
+if ! grep -q "sync_configs_and_backup" ~/.bashrc; then
+    log "Adding auto config sync and backup function to ~/.bashrc..."
+    cat << "EOF" >> ~/.bashrc
+
+sync_configs_and_backup() {
+    if [ -d ~/dotfiles ]; then
+        log "Auto-syncing and backing up configurations to dotfiles (excluding cache and temp files)..."
+        cd ~/dotfiles
+        for config_dir_base in "\${CONFIG_DIRS_TO_SYNC[@]}"; do # Escape $ for array in heredoc
+            local source_config_path=~/"\$config_dir_base" # Escape $ for variable in heredoc
+            local backup_config_path="./\$BACKUP_DIR_NAME/\$config_dir_base" # Escape $ for variables in heredoc
+            if test -d "\$source_config_path" || test -f "\$source_config_path"; then # Escape $ for variables in heredoc, use test command
+                sync_configs "\$source_config_path" "\$backup_config_path" # Escape $ for variables in heredoc
+            fi
+        done
+        git add .
+        git commit -m "Auto-backup: \$(date +'%Y-%m-%d %H:%M:%S')" || true # Escape $ for command substitution in heredoc
+        git push origin main || log "Warning (Auto-sync): Push failed. Will try again later."
+    fi
 }
+trap sync_configs_and_backup EXIT
+EOF
+else
+    log "Auto config sync and backup already configured in ~/.bashrc. Skipping."
+fi
 
-# Execute main function
-main "$@"
+# --- XFCE Desktop Files Setup ---
+log "Setting up XFCE desktop files..."
+cd ~
+if ! [ -f startxfce4_termux.sh ]; then
+    wget https://raw.githubusercontent.com/LinuxDroidMaster/Termux-Desktops/main/scripts/termux_native/startxfce4_termux.sh
+    chmod +x startxfce4_termux.sh
+    log "Downloaded and set execute permissions for startxfce4_termux.sh"
+else
+    log "startxfce4_termux.sh already exists. Skipping download."
+fi
+
+mkdir -p ~/Desktop
+if ! [ -f ~/Desktop/Shutdown.desktop ]; then
+    wget -P ~/Desktop https://raw.githubusercontent.com/LinuxDroidMaster/Termux-Desktops/main/scripts/termux_native/Shutdown.desktop
+    log "Downloaded Shutdown.desktop to ~/Desktop"
+else
+    log "Shutdown.desktop already exists in ~/Desktop. Skipping download."
+fi
+
+# --- Setup Complete ---
+log "Setup complete! Starting XFCE..."
+log "You can start XFCE desktop by running: ./startxfce4_termux.sh"
+echo " "
+echo "Setup complete! You can start XFCE desktop by running: ./startxfce4_termux.sh"
+echo " "
+echo "Important: This script attempts to sync 'everything except cache files' based on common patterns."
+echo "         Please review the CONFIG_DIRS_TO_SYNC and RSYNC_EXCLUDE_PATTERNS arrays at the"
+echo "         beginning of the script to customize synced directories and excluded patterns."
+echo "         Especially review RSYNC_EXCLUDE_PATTERNS and add more patterns if necessary to avoid"
+echo "         syncing large or unwanted data. Be cautious syncing SSH private keys across untrusted systems."
