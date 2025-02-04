@@ -93,9 +93,9 @@ sync_configs() {
         exclude_options+="--exclude '$pattern' "
     done
 
-    if [ -d "$source" ] && [ -n "$(ls -A "$source" 2>/dev/null)" ]; then # Use -n to check for non-empty output
+    if [ -d "$source" ] && [ -n "`ls -A \"$source\" 2>/dev/null`" ]; then # Use -n to check for non-empty output - using backticks and escaped quotes
         log "Syncing directory: $source to $dest (excluding cache and temp files)"
-        rsync -av --delete $exclude_options "$source/" "$dest/"
+        rsync -av --delete "$exclude_options" "$source/" "$dest/"
     elif [ -f "$source" ]; then
         log "Syncing file: $source to $dest"
         rsync -av "$source" "$dest"
