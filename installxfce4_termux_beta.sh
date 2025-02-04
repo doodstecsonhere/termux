@@ -135,7 +135,10 @@ if [ ! -f ~/.ssh/id_rsa ]; then
         log "Visit https://github.com/settings/keys in your browser to add the key."
     fi
 
-    # Wait for user confirmation
+    read -n 1 -s -r -p "Press Enter to continue after copying the SSH key..."
+    echo "" # Add a newline after the prompt
+
+    # Wait for user confirmation (now after the explicit pause)
     while true; do
         read -p "Have you added the SSH key to your GitHub account? (y/n): " response
         case "$response" in
