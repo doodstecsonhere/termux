@@ -72,7 +72,7 @@ RSYNC_EXCLUDE_PATTERNS=(
 read -p "Enter your GitHub username: " GITHUB_USERNAME
 read -p "Enter your GitHub email: " GITHUB_EMAIL
 read -p "Enter your dotfiles repository name (default: $DOTFILES_REPO_DEFAULT): " DOTFILES_REPO_INPUT
-DOTFILES_REPO="${DOTFILES_REPO_INPUT:-$DOTFILES_REPO_DEFAULT}"
+DOTFILES_REPO=${DOTFILES_REPO_INPUT:-$DOTFILES_REPO_DEFAULT}
 
 # --- Functions ---
 log() {
@@ -93,13 +93,13 @@ sync_configs() {
         exclude_options+="--exclude '$pattern' "
     done
 
-    if test -d "$source"; then # Simplified if condition - Attempt 5a: Only test -d "$source"
+    if test -d "$source" && test -n "`ls -A \"$source\" 2>/dev/null`"; then # Rewritten if condition - Attempt 4
         log "Syncing directory: $source to $dest (excluding cache and temp files)"
         rsync -av --delete "$exclude_options" "$source/" "$dest/"
-    elif test -f "$source"; then # Kept elif and else as before
+    elif test -f "$source"; then # Kept elif part as it was
         log "Syncing file: $source to $dest"
         rsync -av "$source" "$dest"
-    else
+    else # Kept else part as it was
         log "Warning: Source path '$source' does not exist. Skipping sync."
     fi
 }
@@ -259,30 +259,19 @@ else
 fi
 
 # --- Set up Auto Config Sync and Backup on Exit ---
-if ! grep -q "sync_configs_and_backup" ~/.bashrc; then
-    log "Adding auto config sync and backup function to ~/.bashrc..."
+if ! grep -q "test_exit_trap_function" ~/.bashrc; then # Changed grep to test for test_exit_trap_function
+    log "Adding minimal exit trap test to ~/.bashrc..."
     cat << "EOF" >> ~/.bashrc
 
+# --- Auto Sync and Backup Dotfiles on Exit ---
 sync_configs_and_backup() {
-    if [ -d ~/dotfiles ]; then
-        log "Auto-syncing and backing up configurations to dotfiles (excluding cache and temp files)..."
-        cd ~/dotfiles
-        for config_dir_base in "\${CONFIG_DIRS_TO_SYNC[@]}"; do # Escape $ for array in heredoc
-            local source_config_path=~/"\$config_dir_base" # Escape $ for variable in heredoc
-            local backup_config_path="./\$BACKUP_DIR_NAME/\$config_dir_base" # Escape $ for variables in heredoc
-            if test -d "\$source_config_path" || test -f "\$source_config_path"; then # Escape $ for variables in heredoc, use test command
-                sync_configs "\$source_config_path" "\$backup_config_path" # Escape $ for variables in heredoc
-            fi
-        done
-        git add .
-        git commit -m "Auto-backup: \$(date +'%Y-%m-%d %H:%M:%S')" || true # Escape $ for command substitution in heredoc
-        git push origin main || log "Warning (Auto-sync): Push failed. Will try again later."
-    fi
+    MESSAGE="Auto-sync function called! (No 'local' keyword)" # Removed local
+    log "$MESSAGE" # Removed local
 }
 trap sync_configs_and_backup EXIT
 EOF
 else
-    log "Auto config sync and backup already configured in ~/.bashrc. Skipping."
+    log "Exit trap test already configured in ~/.bashrc. Skipping."
 fi
 
 # --- XFCE Desktop Files Setup ---
