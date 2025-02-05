@@ -7,7 +7,10 @@ pkg install wget -y && wget -O- https://raw.githubusercontent.com/doodstecsonher
 For the beta version, use:
 
 ```bash
-pkg install wget git  -y && wget -O- https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux_beta.sh | bash
+pkg install wget git  -y && \
+wget -O installxfce4_termux_beta.sh https://raw.githubusercontent.com/doodstecsonhere/termux/main/installxfce4_termux_beta.sh && \
+chmod +x installxfce4_termux_beta.sh && \
+./installxfce4_termux_beta.sh
 ```
 
 # Termux Dotfiles Setup Script
