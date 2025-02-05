@@ -93,13 +93,13 @@ sync_configs() {
         exclude_options+="--exclude '$pattern' "
     done
 
-    if test -d "$source" && test -n "`ls -A \"$source\" 2>/dev/null`"; then # Rewritten if condition - Attempt 4
+    if test -d "$source"; then # Simplified if condition - Attempt 5a: Only test -d "$source"
         log "Syncing directory: $source to $dest (excluding cache and temp files)"
         rsync -av --delete "$exclude_options" "$source/" "$dest/"
-    elif test -f "$source"; then # Kept elif part as it was
+    elif test -f "$source"; then # Kept elif and else as before
         log "Syncing file: $source to $dest"
         rsync -av "$source" "$dest"
-    else # Kept else part as it was
+    else
         log "Warning: Source path '$source' does not exist. Skipping sync."
     fi
 }
