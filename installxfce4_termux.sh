@@ -31,7 +31,9 @@ firefox \
 chromium \
 flameshot \
 fluent-gtk-theme \
-fluent-icon-theme
+fluent-icon-theme \
+papirus-icon-theme \
+ristretto
 
 # get start desktop file
 
