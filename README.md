@@ -1,3 +1,5 @@
+Download Termux app here: https://f-droid.org/en/packages/com.termux/
+
 For the stable version, just copy and paste the below code in Termux:
 
 ```bash
